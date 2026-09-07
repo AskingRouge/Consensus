@@ -1,0 +1,15 @@
+# Local development only. Spins up a MongoDB matching what MongoDB Atlas
+# (and, later, Azure) will provide — the app talks to it purely through
+# MONGODB_URI, so moving from this container to Atlas is a one-line env
+# change, not a code change.
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+volumes:
+  mongo-data:
