@@ -43,6 +43,7 @@ func (h *Handler) Routes(r chi.Router) {
 
 			r.Get("/scores", h.ListScores)
 			r.Get("/comments", h.ListComments)
+			r.Get("/export", h.ExportSession)
 		})
 	})
 }

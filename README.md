@@ -12,7 +12,7 @@ Built in phases; this checklist tracks progress.
 - [x] **Phase 4** — React frontend: login/signup, session list, session view, item cards, live presence
 - [x] **Phase 5** — Rubric scoring UI + disagreement flagging logic (backend + frontend)
 - [x] **Phase 6** — Comment threads, live via WebSocket
-- [ ] Phase 7 — Export functionality (JSON/CSV)
+- [x] **Phase 7** — Export functionality (JSON/CSV)
 - [ ] Phase 8 — Terraform infrastructure + Azure deployment *(deliberately deferred — see note below)*
 - [ ] Phase 9 — Final README + architecture write-up
 
@@ -48,7 +48,7 @@ consensus/
 │   │   ├── auth/            # username/password auth + allowlist (Phase 2; OAuth later)
 │   │   ├── scoring/           # rubric validation + disagreement detection (pure, heavily tested)
 │   │   ├── ws/                  # WebSocket hub: connections, presence, broadcast
-│   │   └── export/                # JSON/CSV export (Phase 7)
+│   │   └── export/                # JSON/CSV rendering (pure, tested)
 │   └── Dockerfile
 ├── frontend/           # React app (Vite)
 │   └── src/
@@ -204,6 +204,8 @@ If you want to see two reviewers disagree, open the same session URL in two brow
 
 Every item also has a discussion thread — post a comment and it appears instantly for every other connected reviewer, oldest first, with your own comments visually distinguished from others'.
 
+**Export JSON** / **Export CSV** in the session header download the full session — every item, every reviewer's scores, and (JSON only) every comment — for the research team's own pipeline. JSON nests everything per item; CSV is one row per (item, reviewer) score with a column per rubric dimension, so it opens directly in a spreadsheet. An item nobody has scored yet still gets a row/entry in both, so the export always reflects the whole session, not just the scored parts. Comments aren't in the CSV — a discussion thread doesn't have a natural one-row-per-item shape — so use JSON if you need those.
+
 ### 7. Run the tests
 
 ```bash
@@ -233,6 +235,7 @@ npm run lint
 | GET | `/api/sessions/{id}/scores` | yes | List every score in the session |
 | POST | `/api/sessions/{id}/items/{itemID}/comments` | yes | Post a comment on one item |
 | GET | `/api/sessions/{id}/comments` | yes | List every comment in the session |
+| GET | `/api/sessions/{id}/export?format=json\|csv` | yes | Download the full session (items, scores, comments — JSON only) |
 | GET (WS) | `/ws/sessions/{id}` | yes | Live presence, score, and comment updates |
 
-More to come: export.
+Every core feature in the original build order is now done. What's left: real Google OAuth and Terraform/Azure deployment (both deferred by request — see the notes above), plus Phase 9's architecture write-up.

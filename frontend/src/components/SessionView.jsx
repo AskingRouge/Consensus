@@ -155,6 +155,14 @@ export default function SessionView({ you }) {
         <div className="session-header__right">
           <span className={`ws-status ws-status--${status}`}>{STATUS_LABEL[status]}</span>
           <PresenceIndicator presence={presence} itemId={undefined} you={you} />
+          <div className="export-links">
+            <a className="btn btn--secondary" href={`${api.API_BASE}/api/sessions/${sessionId}/export?format=json`}>
+              Export JSON
+            </a>
+            <a className="btn btn--secondary" href={`${api.API_BASE}/api/sessions/${sessionId}/export?format=csv`}>
+              Export CSV
+            </a>
+          </div>
         </div>
       </div>
 
