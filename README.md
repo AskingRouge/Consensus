@@ -14,7 +14,7 @@ Built in phases; this checklist tracks progress.
 - [x] **Phase 6** — Comment threads, live via WebSocket
 - [x] **Phase 7** — Export functionality (JSON/CSV)
 - [ ] Phase 8 — Terraform infrastructure + Azure deployment *(deliberately deferred — see note below)*
-- [ ] Phase 9 — Final README + architecture write-up
+- [x] **Phase 9** — Final README + architecture write-up
 
 > **Azure/Terraform note:** deployment is being held off for now by request. Everything is built so the eventual move is a config change, not a rewrite — `MONGODB_URI` is the only thing that changes to go from the local `docker-compose` Mongo to MongoDB Atlas, and the backend already builds into a portable Docker image. The `infra/` Terraform and Azure-specific docs will be added in Phase 8 when you're ready.
 
@@ -31,7 +31,11 @@ Built in phases; this checklist tracks progress.
 | Deployment | Azure Container Apps + MongoDB Atlas | *(deferred, see above)* |
 | IaC | Terraform | *(deferred, see above)* |
 
-A full architecture write-up (WebSocket broadcast model, why Go/Mongo) lands in Phase 9.
+## Architecture
+
+The backend is one Go binary. REST handlers do the reads and writes to MongoDB; a lightweight WebSocket hub — one room per active session, tracked in memory — pushes updates to everyone connected to that session. The flow is always the same: a handler writes to Mongo, then calls `Hub.Broadcast`, and every open tab on that session gets the same message within milliseconds. Every broadcast is a full snapshot, not a delta — the complete presence list, or a score alongside the item's freshly recomputed disagreement flag — specifically so a client that just reconnected after a dropped connection renders correctly from the very next message without replaying anything it missed. That also means REST stays the single source of truth throughout: the WebSocket is a live-push convenience layered on top of it, never a correctness dependency, so a reviewer whose socket briefly drops still gets a fully correct result from the HTTP response alone.
+
+Go earns its place here specifically because of that hub: handling many concurrent, long-lived WebSocket connections is exactly what goroutines are for — each connection gets its own reader/writer goroutine pair, and the standard library's concurrency primitives (channels, mutexes) make the hub's register/broadcast/disconnect logic something you can actually reason about and verify with `go test -race`, rather than a source of subtle bugs. MongoDB earns its place because a research team's rubric and item shape genuinely vary between evaluation batches — one session might score three dimensions on a 1-5 scale, the next might add a pass/fail dimension or change the scale — and a document store lets that live as configuration inside the session document itself, rather than forcing a schema migration every time the rubric changes.
 
 ## Project layout
 
@@ -66,7 +70,7 @@ consensus/
 - **Docker** (for local MongoDB) — or a MongoDB Atlas connection string, see below
 - **Node 20.19+ or 22.12+** — the frontend's toolchain (Vite 8) requires it; older Node 20.x releases fail to install
 
-## Local setup (what's built so far)
+## Local setup
 
 ### 1. Start MongoDB
 
@@ -217,7 +221,7 @@ npm run build   # also runs Vite's own type/bundle checks
 npm run lint
 ```
 
-## Endpoints so far
+## Endpoints
 
 | Method | Path | Auth required | Description |
 |---|---|---|---|
@@ -238,4 +242,4 @@ npm run lint
 | GET | `/api/sessions/{id}/export?format=json\|csv` | yes | Download the full session (items, scores, comments — JSON only) |
 | GET (WS) | `/ws/sessions/{id}` | yes | Live presence, score, and comment updates |
 
-Every core feature in the original build order is now done. What's left: real Google OAuth and Terraform/Azure deployment (both deferred by request — see the notes above), plus Phase 9's architecture write-up.
+Every core feature in the original build order is done — sessions, auth, live scoring, disagreement flagging, comments, and export, all built and verified against a real running stack, not just written. What's left is exactly the two things deliberately deferred by request: real Google OAuth (see the auth note above) and Terraform/Azure deployment (see the note above) — both isolated by design so picking them up later is additive, not a rewrite.
