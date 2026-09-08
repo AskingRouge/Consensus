@@ -25,6 +25,13 @@ type RubricDimension struct {
 }
 
 // Session represents one batch of LLM outputs to review.
+//
+// Members is the access-control list: only these emails (always including
+// CreatedBy, added at creation) can see or act on this session — it's
+// excluded from ListSessions results and every other session-scoped
+// endpoint for anyone not on it. Being on the global ALLOWED_EMAILS
+// allowlist gets you into the team; being a session Member gets you into
+// that specific session.
 type Session struct {
 	ID                    primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	Name                  string             `bson:"name" json:"name"`
@@ -32,6 +39,7 @@ type Session struct {
 	CreatedBy             string             `bson:"created_by" json:"created_by"`
 	Rubric                []RubricDimension  `bson:"rubric" json:"rubric"`
 	DisagreementThreshold float64            `bson:"disagreement_threshold" json:"disagreement_threshold"`
+	Members               []string           `bson:"members" json:"members"`
 }
 
 // DefaultRubric returns the rubric shipped by default, matching the UNC

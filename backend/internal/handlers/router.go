@@ -34,7 +34,10 @@ func (h *Handler) Routes(r chi.Router) {
 		r.Get("/", h.ListSessions)
 
 		r.Route("/{sessionID}", func(r chi.Router) {
+			r.Use(h.RequireSessionMember)
+
 			r.Get("/", h.GetSession)
+			r.Post("/invite", h.InviteMember)
 
 			r.Get("/items", h.ListItems)
 			r.Post("/items/upload", h.UploadItems)

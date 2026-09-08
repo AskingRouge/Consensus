@@ -4,7 +4,7 @@ import * as api from '../api'
 import { useWebSocket } from '../hooks/useWebSocket'
 import CommentThread from './CommentThread'
 import ItemCard from './ItemCard'
-import PresenceIndicator from './PresenceIndicator'
+import PresenceIndicator, { Avatar } from './PresenceIndicator'
 import RubricScorer from './RubricScorer'
 
 const STATUS_LABEL = {
@@ -24,6 +24,9 @@ export default function SessionView({ you }) {
   const [flaggedOnly, setFlaggedOnly] = useState(false)
   const fileInputRef = useRef(null)
   const [uploading, setUploading] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviting, setInviting] = useState(false)
+  const [inviteError, setInviteError] = useState(null)
 
   // A score update — whether it arrives live over the socket or comes
   // straight back from our own submit call — always means "replace this
@@ -120,6 +123,22 @@ export default function SessionView({ you }) {
     applyComment(comment)
   }
 
+  async function handleInvite(e) {
+    e.preventDefault()
+    if (!inviteEmail.trim()) return
+    setInviting(true)
+    setInviteError(null)
+    try {
+      await api.inviteMember(sessionId, inviteEmail.trim())
+      setInviteEmail('')
+      setSession(await api.getSession(sessionId))
+    } catch (err) {
+      setInviteError(err.message)
+    } finally {
+      setInviting(false)
+    }
+  }
+
   if (error) {
     return (
       <div className="page">
@@ -164,6 +183,25 @@ export default function SessionView({ you }) {
             </a>
           </div>
         </div>
+      </div>
+
+      <div className="member-list">
+        {session.members.map((email) => (
+          <Avatar key={email} email={email} title={email === you ? `${email} (you)` : email} />
+        ))}
+        <form className="invite-form" onSubmit={handleInvite}>
+          <input
+            type="email"
+            placeholder="Invite teammate by email"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            disabled={inviting}
+          />
+          <button type="submit" className="btn btn--secondary" disabled={inviting || !inviteEmail.trim()}>
+            {inviting ? 'Inviting…' : '+ Invite'}
+          </button>
+        </form>
+        {inviteError && <span className="error-text small">{inviteError}</span>}
       </div>
 
       <div className="session-body">

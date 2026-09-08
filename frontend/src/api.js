@@ -50,6 +50,10 @@ export const listSessions = () => get('/api/sessions')
 export const createSession = (name, options = {}) => post('/api/sessions', { name, ...options })
 export const getSession = (sessionId) => get(`/api/sessions/${sessionId}`)
 
+// inviteMember grants an allowlisted teammate access to this session —
+// sessions are private to their members until invited.
+export const inviteMember = (sessionId, email) => post(`/api/sessions/${sessionId}/invite`, { email })
+
 // --- Items ---
 export const listItems = (sessionId) => get(`/api/sessions/${sessionId}/items`)
 

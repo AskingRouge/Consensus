@@ -14,6 +14,7 @@ import (
 
 	"consensus/internal/auth"
 	"consensus/internal/db"
+	"consensus/internal/models"
 )
 
 // Handler upgrades HTTP requests to WebSocket connections and joins them
@@ -62,12 +63,19 @@ func (h *Handler) ServeSession(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
-	switch err := h.DB.Sessions.FindOne(ctx, bson.M{"_id": sessionID}).Err(); {
+	var session models.Session
+	switch err := h.DB.Sessions.FindOne(ctx, bson.M{"_id": sessionID}).Decode(&session); {
 	case err == mongo.ErrNoDocuments:
 		http.Error(w, "session not found", http.StatusNotFound)
 		return
 	case err != nil:
 		http.Error(w, "failed to look up session", http.StatusInternalServerError)
+		return
+	}
+	if !isMember(session, email) {
+		// 404, not 403 — matches the REST API's RequireSessionMember,
+		// which doesn't reveal a session exists to non-members.
+		http.Error(w, "session not found", http.StatusNotFound)
 		return
 	}
 
@@ -91,4 +99,13 @@ func (h *Handler) ServeSession(w http.ResponseWriter, r *http.Request) {
 
 	go client.writePump()
 	go client.readPump()
+}
+
+func isMember(session models.Session, email string) bool {
+	for _, m := range session.Members {
+		if m == email {
+			return true
+		}
+	}
+	return false
 }
