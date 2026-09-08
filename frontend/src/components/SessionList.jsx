@@ -38,7 +38,10 @@ export default function SessionList() {
 
   return (
     <div className="page">
-      <h1>Review sessions</h1>
+      <div className="page-header">
+        <h1>Sessions</h1>
+        <p className="muted">Batches you've created or been invited to — private until you invite a teammate.</p>
+      </div>
 
       <form className="create-session-form" onSubmit={handleCreate}>
         <input
@@ -56,7 +59,7 @@ export default function SessionList() {
 
       {sessions === null && !error && <p className="muted">Loading…</p>}
       {sessions && sessions.length === 0 && (
-        <p className="muted">No sessions yet — create one above to get started.</p>
+        <p className="muted">Nothing here yet — create a session above to get started.</p>
       )}
 
       <ul className="session-list">

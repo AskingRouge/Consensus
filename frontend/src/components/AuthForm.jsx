@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { flushSync } from 'react-dom'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import * as api from '../api'
+import Logo from './Logo'
 
 /**
  * Combined login/signup screen. There's no Google OAuth yet (see the
@@ -41,8 +42,14 @@ export default function AuthForm({ onAuthenticated }) {
 
   return (
     <div className="auth-screen">
+      <div className="auth-screen__brand">
+        <Logo />
+      </div>
       <form className="auth-form" onSubmit={handleSubmit}>
-        <h1>Consensus</h1>
+        <div className="auth-form__logo">
+          <Logo wordmark={false} size={40} />
+        </div>
+        <h1>Welcome</h1>
         <p className="auth-form__subtitle">Collaborative LLM output review</p>
 
         <div className="auth-form__tabs">

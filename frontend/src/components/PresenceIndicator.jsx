@@ -1,8 +1,10 @@
 // Small colored initials badge for one reviewer, plus a row of them. Color
 // is derived deterministically from the email so the same person always
 // gets the same color across the app (and across page reloads) without
-// storing anything.
-const COLORS = ['#5b6ee1', '#e1725b', '#3fae7a', '#c98c2e', '#9455c9', '#2e9bb0']
+// storing anything. Chosen to stay visually distinct from the brand's
+// violet/indigo (used everywhere for buttons and active states) so an
+// avatar never reads as an interactive element.
+const COLORS = ['#E1725B', '#3FAE7A', '#C98C2E', '#2E9BB0', '#D6478B', '#3B82C4']
 
 function colorFor(email) {
   let hash = 0
