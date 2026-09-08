@@ -9,7 +9,7 @@ Built in phases; this checklist tracks progress.
 - [x] **Phase 1** — Go backend skeleton, MongoDB models, REST CRUD for sessions/items (no auth, no WebSockets yet)
 - [x] **Phase 2** — Auth + allowlist middleware *(username/password for now — see note below)*
 - [x] **Phase 3** — WebSocket hub: connection management, broadcasting presence (score/comment broadcasts wire in once those features exist, Phases 5-6)
-- [ ] Phase 4 — React frontend: session list, session view, item cards, live score display
+- [x] **Phase 4** — React frontend: login/signup, session list, session view, item cards, live presence (score display slot exists, populated in Phase 5)
 - [ ] Phase 5 — Rubric scoring UI + disagreement flagging logic (backend + frontend)
 - [ ] Phase 6 — Comment threads, live via WebSocket
 - [ ] Phase 7 — Export functionality (JSON/CSV)
@@ -49,7 +49,12 @@ consensus/
 │   │   ├── ws/                # WebSocket hub: connections, presence, broadcast
 │   │   └── export/              # JSON/CSV export (Phase 7)
 │   └── Dockerfile
-├── frontend/           # React app (Phase 4+)
+├── frontend/           # React app (Vite)
+│   └── src/
+│       ├── components/  # AuthForm, SessionList, SessionView, ItemCard, PresenceIndicator
+│       ├── hooks/         # useWebSocket — reconnect-with-backoff, presence/score/comment state
+│       ├── api.js          # REST client (fetch + cookies)
+│       └── App.jsx          # routing + auth gate
 ├── infra/              # Terraform (Phase 8, deferred)
 └── docker-compose.yml  # local MongoDB for dev
 ```
@@ -58,7 +63,7 @@ consensus/
 
 - **Go 1.22+** — [go.dev/dl](https://go.dev/dl/)
 - **Docker** (for local MongoDB) — or a MongoDB Atlas connection string, see below
-- **Node 20+** — needed starting Phase 4
+- **Node 20.19+ or 22.12+** — the frontend's toolchain (Vite 8) requires it; older Node 20.x releases fail to install
 
 ## Local setup (what's built so far)
 
@@ -105,7 +110,7 @@ consensus backend listening on :8080 (frontend origin: http://localhost:5173)
 
 ### 4. Try the API
 
-There's no frontend yet, so drive it with `curl` — pass `-c cookies.txt` on the request that logs you in and `-b cookies.txt` on every request after, so your session cookie carries over between calls.
+The frontend (step 6 below) is the normal way to use this, but the REST API works standalone too — useful for scripting or debugging. Pass `-c cookies.txt` on the request that logs you in and `-b cookies.txt` on every request after, so your session cookie carries over between calls.
 
 ```bash
 # health check (no auth needed)
@@ -176,15 +181,33 @@ A client tells the server which item it's looking at by sending:
 {"type": "view_item", "item_id": "6a9f..."}
 ```
 
-(`item_id: ""` means "not viewing a specific item" — e.g. back on the session's item list.) There's no frontend yet to see this in, but you can try it with any WebSocket client — e.g. [websocat](https://github.com/vi/websocat): `websocat "ws://localhost:8080/ws/sessions/<SESSION_ID>" -H "Cookie: consensus_session=<value from cookies.txt>"`.
+(`item_id: ""` means "not viewing a specific item" — e.g. back on the session's item list.) The frontend (step 6) drives this automatically, but you can also try it directly with any WebSocket client — e.g. [websocat](https://github.com/vi/websocat): `websocat "ws://localhost:8080/ws/sessions/<SESSION_ID>" -H "Cookie: consensus_session=<value from cookies.txt>"`.
 
 Score updates (Phase 5) and new comments (Phase 6) will broadcast on this same connection as `score_update` / `comment` messages — the hub and wire format are already in place for both.
 
-### 6. Run the tests
+### 6. Run the frontend
+
+With the backend still running (steps 1-3 above):
+
+```bash
+cd frontend
+npm install   # first time only
+npm run dev
+```
+
+Open **http://localhost:5173**. Sign up with an allowlisted email, create a session, upload a JSON/CSV batch (a file picker button, no curl needed now), and click into an item — you'll see the "Live" connection badge and everyone's presence avatars update in real time as reviewers move between items. Sharing a session's URL works as an invite link: an unauthenticated visitor is sent to log in first and is then dropped back on that exact session, not the session list.
+
+If you want to see two reviewers at once, open the same session URL in two browsers (or a normal + private window) signed in as two different allowlisted accounts.
+
+### 7. Run the tests
 
 ```bash
 cd backend
 go test ./...
+
+cd frontend
+npm run build   # also runs Vite's own type/bundle checks
+npm run lint
 ```
 
 ## Endpoints so far
