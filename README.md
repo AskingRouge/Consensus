@@ -200,7 +200,9 @@ npm install   # first time only
 npm run dev
 ```
 
-Open **http://localhost:5173**. Sign up with an allowlisted email, create a session, upload a JSON/CSV batch (a file picker button, no curl needed now), and click into an item — you'll see the "Live" connection badge and everyone's presence avatars update in real time as reviewers move between items. Sharing a session's URL works as an invite link: an unauthenticated visitor is sent to log in first and is then dropped back on that exact session, not the session list.
+Open **http://localhost:5173**. Sign up with an allowlisted email, create a session, upload a JSON/CSV batch (a file picker button, no curl needed now), and click into an item — you'll see the "Live" connection badge and everyone's presence avatars update in real time as reviewers move between items.
+
+**Sessions are private by default** — being on the team's `ALLOWED_EMAILS` allowlist gets you into the app, but a session itself is only visible to its creator and whoever they've explicitly invited (the avatar row + "+ Invite" box at the top of a session). An allowlisted teammate who isn't invited can't see the session in their list and gets a 404 if they try the URL directly — sharing a session's link only works as an invite *after* you've added that person, it isn't the access control by itself.
 
 Click a rubric score and submit — it's saved immediately and pushed live to every other connected reviewer. Once two reviewers have scored the same item and their ratings differ by at least the session's disagreement threshold (2, by default, on a scale dimension; any split verdict on a pass/fail dimension), the item is flagged "Needs discussion" for everyone, with a filter in the item list to jump straight to flagged items.
 
@@ -230,16 +232,19 @@ npm run lint
 | POST | `/api/auth/login` | no | Log in with email/password |
 | POST | `/api/auth/logout` | no | Clear the current session |
 | GET | `/api/auth/me` | yes | Current logged-in user's email |
-| POST | `/api/sessions` | yes | Create a session (default rubric if none supplied) |
-| GET | `/api/sessions` | yes | List all sessions |
-| GET | `/api/sessions/{id}` | yes | Get one session |
-| GET | `/api/sessions/{id}/items` | yes | List items in a session |
-| POST | `/api/sessions/{id}/items/upload` | yes | Upload a JSON or CSV batch of items |
-| POST | `/api/sessions/{id}/items/{itemID}/scores` | yes | Submit/update your score for one item |
-| GET | `/api/sessions/{id}/scores` | yes | List every score in the session |
-| POST | `/api/sessions/{id}/items/{itemID}/comments` | yes | Post a comment on one item |
-| GET | `/api/sessions/{id}/comments` | yes | List every comment in the session |
-| GET | `/api/sessions/{id}/export?format=json\|csv` | yes | Download the full session (items, scores, comments — JSON only) |
-| GET (WS) | `/ws/sessions/{id}` | yes | Live presence, score, and comment updates |
+| POST | `/api/sessions` | yes | Create a session (default rubric if none supplied); you're its first member |
+| GET | `/api/sessions` | yes | List sessions you're a member of |
+| GET | `/api/sessions/{id}` | member | Get one session |
+| POST | `/api/sessions/{id}/invite` | member | Invite an allowlisted teammate into this session |
+| GET | `/api/sessions/{id}/items` | member | List items in a session |
+| POST | `/api/sessions/{id}/items/upload` | member | Upload a JSON or CSV batch of items |
+| POST | `/api/sessions/{id}/items/{itemID}/scores` | member | Submit/update your score for one item |
+| GET | `/api/sessions/{id}/scores` | member | List every score in the session |
+| POST | `/api/sessions/{id}/items/{itemID}/comments` | member | Post a comment on one item |
+| GET | `/api/sessions/{id}/comments` | member | List every comment in the session |
+| GET | `/api/sessions/{id}/export?format=json\|csv` | member | Download the full session (items, scores, comments — JSON only) |
+| GET (WS) | `/ws/sessions/{id}` | member | Live presence, score, and comment updates |
+
+"member" means logged in *and* on that specific session's Members list — a non-member gets a 404, same as a session that doesn't exist, so its existence isn't leaked to people who aren't on it.
 
 Every core feature in the original build order is done — sessions, auth, live scoring, disagreement flagging, comments, and export, all built and verified against a real running stack, not just written. What's left is exactly the two things deliberately deferred by request: real Google OAuth (see the auth note above) and Terraform/Azure deployment (see the note above) — both isolated by design so picking them up later is additive, not a rewrite.
