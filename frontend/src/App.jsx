@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import * as api from './api'
 import AuthForm from './components/AuthForm'
+import Dashboard from './components/Dashboard'
 import Sidebar from './components/Sidebar'
-import SessionList from './components/SessionList'
 import SessionView from './components/SessionView'
 
 export default function App() {
@@ -32,7 +32,7 @@ export default function App() {
         path="/"
         element={
           <RequireAuth you={you}>
-            <SessionList />
+            <Dashboard you={you} />
           </RequireAuth>
         }
       />

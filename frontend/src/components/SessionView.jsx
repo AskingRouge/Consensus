@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useParams, useSearchParams, Link } from 'react-router-dom'
 import * as api from '../api'
 import { useWebSocket } from '../hooks/useWebSocket'
 import CommentThread from './CommentThread'
@@ -15,6 +15,7 @@ const STATUS_LABEL = {
 
 export default function SessionView({ you }) {
   const { sessionId } = useParams()
+  const [searchParams] = useSearchParams()
   const [session, setSession] = useState(null)
   const [items, setItems] = useState(null)
   const [scoresByItem, setScoresByItem] = useState({}) // item id -> Score[]
@@ -66,7 +67,11 @@ export default function SessionView({ you }) {
   })
 
   useEffect(() => {
-    setSelectedItemId(null)
+    // A dashboard task link can carry ?item=<id> to jump straight into a
+    // specific item; this component remounts fresh per sessionId (see
+    // App.jsx's SessionViewPage), so reading it once here on mount is
+    // enough — no need to watch it for changes.
+    setSelectedItemId(searchParams.get('item'))
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
