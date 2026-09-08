@@ -8,8 +8,9 @@ import (
 	"consensus/internal/auth"
 )
 
-// Routes registers every REST endpoint onto r. WebSocket routes are
-// registered separately in main.go once internal/ws lands (Phase 3).
+// Routes registers every REST endpoint onto r. The WebSocket upgrade
+// endpoint (internal/ws) is registered separately in main.go, alongside
+// its own auth.RequireAuth middleware.
 func (h *Handler) Routes(r chi.Router) {
 	r.Get("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})

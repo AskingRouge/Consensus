@@ -1,7 +1,6 @@
 // Command consensus-backend is the entry point for the Consensus API
 // server: it loads configuration, connects to MongoDB, wires up the REST
-// router (and, from Phase 3 on, the WebSocket hub), and serves HTTP until
-// interrupted.
+// router and the WebSocket hub, and serves HTTP until interrupted.
 package main
 
 import (
@@ -22,6 +21,7 @@ import (
 	"consensus/internal/config"
 	"consensus/internal/db"
 	"consensus/internal/handlers"
+	"consensus/internal/ws"
 )
 
 func main() {
@@ -57,7 +57,10 @@ func main() {
 	// on plain http://localhost.
 	cookieSecure := strings.HasPrefix(cfg.FrontendURL, "https://")
 
-	h := handlers.New(database, authStore, cfg.AllowedEmails, cookieSecure)
+	hub := ws.NewHub()
+	wsHandler := ws.NewHandler(hub, database, cfg.FrontendURL)
+
+	h := handlers.New(database, authStore, hub, cfg.AllowedEmails, cookieSecure)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -73,6 +76,15 @@ func main() {
 	}))
 
 	h.Routes(r)
+
+	// The WebSocket upgrade endpoint sits behind the same RequireAuth
+	// middleware as the REST API and reads identity the same way
+	// (auth.UserEmail), so a reviewer's cookie is all that's needed —
+	// there's no separate WebSocket login step.
+	r.Route("/ws", func(r chi.Router) {
+		r.Use(auth.RequireAuth(authStore))
+		r.Get("/sessions/{sessionID}", wsHandler.ServeSession)
+	})
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.Port,

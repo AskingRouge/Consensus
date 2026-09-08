@@ -8,7 +8,7 @@ Built in phases; this checklist tracks progress.
 
 - [x] **Phase 1** — Go backend skeleton, MongoDB models, REST CRUD for sessions/items (no auth, no WebSockets yet)
 - [x] **Phase 2** — Auth + allowlist middleware *(username/password for now — see note below)*
-- [ ] Phase 3 — WebSocket hub: connection management, broadcasting score updates and presence
+- [x] **Phase 3** — WebSocket hub: connection management, broadcasting presence (score/comment broadcasts wire in once those features exist, Phases 5-6)
 - [ ] Phase 4 — React frontend: session list, session view, item cards, live score display
 - [ ] Phase 5 — Rubric scoring UI + disagreement flagging logic (backend + frontend)
 - [ ] Phase 6 — Comment threads, live via WebSocket
@@ -46,7 +46,7 @@ consensus/
 │   │   ├── parse/        # JSON/CSV item-batch parsing
 │   │   ├── handlers/      # REST endpoints
 │   │   ├── auth/            # username/password auth + allowlist (Phase 2; OAuth later)
-│   │   ├── ws/                # WebSocket hub (Phase 3)
+│   │   ├── ws/                # WebSocket hub: connections, presence, broadcast
 │   │   └── export/              # JSON/CSV export (Phase 7)
 │   └── Dockerfile
 ├── frontend/           # React app (Phase 4+)
@@ -159,7 +159,28 @@ Example `items.json`:
 
 A CSV with the header `question,retrieved_context,generated_answer` works the same way — pass `?format=csv` if the filename doesn't end in `.csv`.
 
-### 5. Run the tests
+### 5. Try the WebSocket (live presence)
+
+Each review session has a WebSocket at `ws://localhost:8080/ws/sessions/<SESSION_ID>` — it authenticates with the exact same session cookie as the REST API, so there's no separate WebSocket login step. Every connected client immediately gets, and receives again on any change, a full presence snapshot:
+
+```json
+{"type": "presence", "payload": [
+  {"reviewer_email": "you@unc.edu", "item_id": "6a9f..."},
+  {"reviewer_email": "teammate@unc.edu"}
+]}
+```
+
+A client tells the server which item it's looking at by sending:
+
+```json
+{"type": "view_item", "item_id": "6a9f..."}
+```
+
+(`item_id: ""` means "not viewing a specific item" — e.g. back on the session's item list.) There's no frontend yet to see this in, but you can try it with any WebSocket client — e.g. [websocat](https://github.com/vi/websocat): `websocat "ws://localhost:8080/ws/sessions/<SESSION_ID>" -H "Cookie: consensus_session=<value from cookies.txt>"`.
+
+Score updates (Phase 5) and new comments (Phase 6) will broadcast on this same connection as `score_update` / `comment` messages — the hub and wire format are already in place for both.
+
+### 6. Run the tests
 
 ```bash
 cd backend
@@ -180,5 +201,6 @@ go test ./...
 | GET | `/api/sessions/{id}` | yes | Get one session |
 | GET | `/api/sessions/{id}/items` | yes | List items in a session |
 | POST | `/api/sessions/{id}/items/upload` | yes | Upload a JSON or CSV batch of items |
+| GET (WS) | `/ws/sessions/{id}` | yes | Live presence, score, and comment updates |
 
-More to come: score submission, comments, WebSocket endpoint, export.
+More to come: score submission, comments, export.
