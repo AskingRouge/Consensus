@@ -23,6 +23,12 @@ type DB struct {
 	Items    *mongo.Collection
 	Scores   *mongo.Collection
 	Comments *mongo.Collection
+
+	// Users and AuthSessions back internal/auth (login accounts and
+	// database-persisted login sessions, respectively). Named distinctly
+	// from Sessions, which is the review-session domain collection.
+	Users        *mongo.Collection
+	AuthSessions *mongo.Collection
 }
 
 // Connect dials MongoDB at uri, selects dbName, verifies connectivity with a
@@ -47,12 +53,14 @@ func Connect(uri, dbName string) (*DB, error) {
 	database := client.Database(dbName)
 
 	d := &DB{
-		Client:   client,
-		Database: database,
-		Sessions: database.Collection("sessions"),
-		Items:    database.Collection("items"),
-		Scores:   database.Collection("scores"),
-		Comments: database.Collection("comments"),
+		Client:       client,
+		Database:     database,
+		Sessions:     database.Collection("sessions"),
+		Items:        database.Collection("items"),
+		Scores:       database.Collection("scores"),
+		Comments:     database.Collection("comments"),
+		Users:        database.Collection("users"),
+		AuthSessions: database.Collection("auth_sessions"),
 	}
 
 	if err := d.ensureIndexes(ctx); err != nil {
@@ -80,6 +88,23 @@ func (d *DB) ensureIndexes(ctx context.Context) error {
 
 	if _, err := d.Comments.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys: bson.D{{Key: "item_id", Value: 1}, {Key: "created_at", Value: 1}},
+	}); err != nil {
+		return err
+	}
+
+	if _, err := d.Users.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "email", Value: 1}},
+		Options: options.Index().SetUnique(true),
+	}); err != nil {
+		return err
+	}
+
+	// A TTL index: MongoDB deletes a session document on its own once
+	// expires_at is in the past, so logins don't need a separate cleanup
+	// job.
+	if _, err := d.AuthSessions.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "expires_at", Value: 1}},
+		Options: options.Index().SetExpireAfterSeconds(0),
 	}); err != nil {
 		return err
 	}

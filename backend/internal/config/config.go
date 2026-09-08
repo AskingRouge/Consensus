@@ -5,6 +5,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
@@ -19,12 +21,19 @@ type Config struct {
 	MongoDB     string
 	FrontendURL string
 
-	// Google OAuth (Phase 2). Left blank is fine until then — auth
-	// middleware refuses to start if these are required but missing.
+	// Google OAuth — not wired up yet (username/password auth is used for
+	// now; see internal/auth). Left blank until that lands.
 	GoogleOAuthClientID     string
 	GoogleOAuthClientSecret string
-	AllowedEmails           []string
-	SessionSecret           string
+
+	AllowedEmails []string
+	SessionSecret string
+	// SessionSecretGenerated is true when no SESSION_SECRET was configured
+	// and Load() generated a random one for this process. That's fine for
+	// a single local dev instance, but main.go logs a loud warning because
+	// it means every login session is invalidated on restart, and it would
+	// break auth entirely across multiple instances (e.g. once deployed).
+	SessionSecretGenerated bool
 }
 
 // Load reads a .env file if present (local dev convenience; production
@@ -49,7 +58,24 @@ func Load() (Config, error) {
 		return cfg, fmt.Errorf("MONGODB_URI must not be empty")
 	}
 
+	if cfg.SessionSecret == "" {
+		secret, err := randomSecret()
+		if err != nil {
+			return cfg, fmt.Errorf("failed to generate a fallback SESSION_SECRET: %w", err)
+		}
+		cfg.SessionSecret = secret
+		cfg.SessionSecretGenerated = true
+	}
+
 	return cfg, nil
+}
+
+func randomSecret() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
 }
 
 func getEnv(key, def string) string {

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
+	"consensus/internal/auth"
 	"consensus/internal/config"
 	"consensus/internal/db"
 	"consensus/internal/handlers"
@@ -26,6 +28,15 @@ func main() {
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("config: %v", err)
+	}
+
+	if cfg.SessionSecretGenerated {
+		log.Println("WARNING: SESSION_SECRET is not set — using a randomly generated one for this process. " +
+			"Every login will be invalidated on restart, and this will break auth entirely if you ever run " +
+			"more than one instance. Set SESSION_SECRET before deploying (generate one with: openssl rand -base64 32).")
+	}
+	if len(cfg.AllowedEmails) == 0 {
+		log.Println("WARNING: ALLOWED_EMAILS is empty — nobody will be able to sign up (allowlist fails closed).")
 	}
 
 	database, err := db.Connect(cfg.MongoURI, cfg.MongoDB)
@@ -40,7 +51,13 @@ func main() {
 		}
 	}()
 
-	h := handlers.New(database)
+	authStore := auth.NewStore(database.AuthSessions, cfg.SessionSecret)
+	// The session cookie only needs Secure once the frontend (and thus the
+	// browser's view of "same site") is served over HTTPS; local dev runs
+	// on plain http://localhost.
+	cookieSecure := strings.HasPrefix(cfg.FrontendURL, "https://")
+
+	h := handlers.New(database, authStore, cfg.AllowedEmails, cookieSecure)
 
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
@@ -50,7 +67,7 @@ func main() {
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{cfg.FrontendURL},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders:   []string{"Accept", "Content-Type", "Authorization", "X-Dev-User-Email"},
+		AllowedHeaders:   []string{"Accept", "Content-Type"},
 		AllowCredentials: true,
 		MaxAge:           300,
 	}))

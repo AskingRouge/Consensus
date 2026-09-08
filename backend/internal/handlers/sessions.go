@@ -13,6 +13,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 
+	"consensus/internal/auth"
 	"consensus/internal/models"
 )
 
@@ -22,11 +23,10 @@ type createSessionRequest struct {
 	DisagreementThreshold *float64                 `json:"disagreement_threshold"`
 }
 
-// CreateSession creates a new review session. If no rubric is supplied, the
-// default three-dimension rubric is used. The creator's identity comes from
-// the authenticated request context (internal/auth); until auth is wired up
-// (Phase 2) it falls back to the "created_by" field in the request body so
-// this endpoint is usable standalone.
+// CreateSession creates a new review session. If no rubric is supplied,
+// the default three-dimension rubric is used. The creator's identity comes
+// from the authenticated request context — this route sits behind
+// auth.RequireAuth, so UserEmail(r) is always populated.
 func (h *Handler) CreateSession(w http.ResponseWriter, r *http.Request) {
 	var req createSessionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -64,7 +64,7 @@ func (h *Handler) CreateSession(w http.ResponseWriter, r *http.Request) {
 		threshold = *req.DisagreementThreshold
 	}
 
-	createdBy := UserEmail(r)
+	createdBy := auth.UserEmail(r)
 	if createdBy == "" {
 		writeError(w, http.StatusUnauthorized, "not authenticated")
 		return

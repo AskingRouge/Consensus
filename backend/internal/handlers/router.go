@@ -4,6 +4,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+
+	"consensus/internal/auth"
 )
 
 // Routes registers every REST endpoint onto r. WebSocket routes are
@@ -13,7 +15,20 @@ func (h *Handler) Routes(r chi.Router) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 	})
 
+	r.Route("/api/auth", func(r chi.Router) {
+		r.Post("/signup", h.Signup)
+		r.Post("/login", h.Login)
+		r.Post("/logout", h.Logout)
+
+		r.Group(func(r chi.Router) {
+			r.Use(auth.RequireAuth(h.AuthStore))
+			r.Get("/me", h.Me)
+		})
+	})
+
 	r.Route("/api/sessions", func(r chi.Router) {
+		r.Use(auth.RequireAuth(h.AuthStore))
+
 		r.Post("/", h.CreateSession)
 		r.Get("/", h.ListSessions)
 

@@ -7,7 +7,7 @@ A real-time, multiplayer tool for a research team to collaboratively score and d
 Built in phases; this checklist tracks progress.
 
 - [x] **Phase 1** — Go backend skeleton, MongoDB models, REST CRUD for sessions/items (no auth, no WebSockets yet)
-- [ ] Phase 2 — Google OAuth + allowlist middleware
+- [x] **Phase 2** — Auth + allowlist middleware *(username/password for now — see note below)*
 - [ ] Phase 3 — WebSocket hub: connection management, broadcasting score updates and presence
 - [ ] Phase 4 — React frontend: session list, session view, item cards, live score display
 - [ ] Phase 5 — Rubric scoring UI + disagreement flagging logic (backend + frontend)
@@ -17,6 +17,8 @@ Built in phases; this checklist tracks progress.
 - [ ] Phase 9 — Final README + architecture write-up
 
 > **Azure/Terraform note:** deployment is being held off for now by request. Everything is built so the eventual move is a config change, not a rewrite — `MONGODB_URI` is the only thing that changes to go from the local `docker-compose` Mongo to MongoDB Atlas, and the backend already builds into a portable Docker image. The `infra/` Terraform and Azure-specific docs will be added in Phase 8 when you're ready.
+
+> **Auth note:** Phase 2 is built as **username/password** rather than Google OAuth, by request, to unblock development without a Google Cloud Console detour. It's a real implementation (bcrypt-hashed passwords, database-backed sessions, an email allowlist that fails closed) — not a stub — but it's deliberately temporary: no password-reset flow exists, since that's meaningful additional surface area (email infra or a manual admin process) not worth building for a scheme that's getting replaced. Every place that cares "who is this request from" reads it through `auth.UserEmail(r)`, so swapping in real Google OAuth later touches `internal/auth` and the login screen only — not the session/item/score/comment handlers.
 
 ## Stack
 
@@ -43,7 +45,7 @@ consensus/
 │   │   ├── db/          # MongoDB connection + indexes
 │   │   ├── parse/        # JSON/CSV item-batch parsing
 │   │   ├── handlers/      # REST endpoints
-│   │   ├── auth/            # Google OAuth + allowlist (Phase 2)
+│   │   ├── auth/            # username/password auth + allowlist (Phase 2; OAuth later)
 │   │   ├── ws/                # WebSocket hub (Phase 3)
 │   │   └── export/              # JSON/CSV export (Phase 7)
 │   └── Dockerfile
@@ -85,6 +87,8 @@ cp .env.example .env
 
 The defaults in `.env.example` already point at the local docker-compose Mongo, so no edits are needed for local dev. If you're using Atlas, replace `MONGODB_URI` with your `mongodb+srv://...` string.
 
+Set `ALLOWED_EMAILS` to a comma-separated list of the emails allowed to sign up (e.g. `you@unc.edu,teammate@unc.edu`) — signup is rejected for anyone else. `SESSION_SECRET` can be left blank for local dev (the server generates a random one and logs a warning); set a real one — `openssl rand -base64 32` — before deploying anywhere, or every login breaks on restart.
+
 ### 3. Run it
 
 ```bash
@@ -101,29 +105,44 @@ consensus backend listening on :8080 (frontend origin: http://localhost:5173)
 
 ### 4. Try the API
 
-There's no frontend yet and no auth yet — requests authenticate via a dev-only `X-Dev-User-Email` header (replaced by real Google OAuth in Phase 2).
+There's no frontend yet, so drive it with `curl` — pass `-c cookies.txt` on the request that logs you in and `-b cookies.txt` on every request after, so your session cookie carries over between calls.
 
 ```bash
-# health check
+# health check (no auth needed)
 curl http://localhost:8080/healthz
 
-# create a session
-curl -X POST http://localhost:8080/api/sessions \
+# sign up (email must be in ALLOWED_EMAILS; password 8+ chars) — logs you
+# in immediately, saving the session cookie to cookies.txt
+curl -c cookies.txt -X POST http://localhost:8080/api/auth/signup \
   -H "Content-Type: application/json" \
-  -H "X-Dev-User-Email: you@unc.edu" \
+  -d '{"email": "you@unc.edu", "password": "a-real-password"}'
+
+# on later visits, log in instead of signing up again
+curl -c cookies.txt -X POST http://localhost:8080/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@unc.edu", "password": "a-real-password"}'
+
+# who am I?
+curl -b cookies.txt http://localhost:8080/api/auth/me
+
+# create a session
+curl -b cookies.txt -X POST http://localhost:8080/api/sessions \
+  -H "Content-Type: application/json" \
   -d '{"name": "Week 3 Course-Scope Eval"}'
 
 # list sessions
-curl http://localhost:8080/api/sessions
+curl -b cookies.txt http://localhost:8080/api/sessions
 
 # upload a batch of items (JSON or CSV — matches the research harness's
 # question / retrieved_context / generated_answer output shape)
-curl -X POST "http://localhost:8080/api/sessions/<SESSION_ID>/items/upload" \
-  -H "X-Dev-User-Email: you@unc.edu" \
+curl -b cookies.txt -X POST "http://localhost:8080/api/sessions/<SESSION_ID>/items/upload" \
   -F "file=@items.json"
 
 # list items in a session
-curl http://localhost:8080/api/sessions/<SESSION_ID>/items
+curl -b cookies.txt http://localhost:8080/api/sessions/<SESSION_ID>/items
+
+# log out
+curl -b cookies.txt -c cookies.txt -X POST http://localhost:8080/api/auth/logout
 ```
 
 Example `items.json`:
@@ -149,13 +168,17 @@ go test ./...
 
 ## Endpoints so far
 
-| Method | Path | Description |
-|---|---|---|
-| GET | `/healthz` | Liveness check |
-| POST | `/api/sessions` | Create a session (default rubric if none supplied) |
-| GET | `/api/sessions` | List all sessions |
-| GET | `/api/sessions/{id}` | Get one session |
-| GET | `/api/sessions/{id}/items` | List items in a session |
-| POST | `/api/sessions/{id}/items/upload` | Upload a JSON or CSV batch of items |
+| Method | Path | Auth required | Description |
+|---|---|---|---|
+| GET | `/healthz` | no | Liveness check |
+| POST | `/api/auth/signup` | no | Create an account (email must be allowlisted); logs in |
+| POST | `/api/auth/login` | no | Log in with email/password |
+| POST | `/api/auth/logout` | no | Clear the current session |
+| GET | `/api/auth/me` | yes | Current logged-in user's email |
+| POST | `/api/sessions` | yes | Create a session (default rubric if none supplied) |
+| GET | `/api/sessions` | yes | List all sessions |
+| GET | `/api/sessions/{id}` | yes | Get one session |
+| GET | `/api/sessions/{id}/items` | yes | List items in a session |
+| POST | `/api/sessions/{id}/items/upload` | yes | Upload a JSON or CSV batch of items |
 
 More to come: score submission, comments, WebSocket endpoint, export.
