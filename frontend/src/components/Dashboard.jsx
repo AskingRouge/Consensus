@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import * as api from '../api'
+import { computeStats } from '../lib/stats'
 import { BarChart, ProgressRing } from './charts'
 
 /**
@@ -84,7 +85,7 @@ export default function Dashboard({ you }) {
               icon={<IconClock />}
               value={stats.totalPending}
               label="Awaiting your score"
-              tone={stats.totalPending > 0 ? 'accent' : undefined}
+              tone={stats.totalPending > 0 ? 'warning' : undefined}
             />
           </div>
 
@@ -126,12 +127,16 @@ export default function Dashboard({ you }) {
             <div className="panel">
               <h2 className="panel__title">Scoring progress</h2>
               <div className="progress-row">
-                <ProgressRing percent={stats.scoredPercent} label="Items scored" />
-                <ProgressRing percent={stats.agreementPercent} label="In agreement" />
+                <ProgressRing percent={stats.scoredPercent} label="Items scored" tone="success" />
+                <ProgressRing percent={stats.agreementPercent} label="In agreement" tone="auto" />
               </div>
 
               <h3 className="panel__subtitle">Disagreement by dimension</h3>
-              <BarChart data={stats.dimensionBars} emptyText="No disagreement yet — nothing's been flagged." />
+              <BarChart
+                data={stats.dimensionBars}
+                tone="danger"
+                emptyText="No disagreement yet — nothing's been flagged."
+              />
             </div>
           </div>
         </>
@@ -195,87 +200,6 @@ function StatCard({ icon, value, label, tone }) {
       <span className="stat-card__label">{label}</span>
     </div>
   )
-}
-
-// --- Data aggregation ---
-// Everything below reads from the same REST endpoints the rest of the app
-// uses (listItems/listScores per session) — the dashboard has no data of
-// its own, it's a view over what's already there.
-
-async function computeStats(sessionsList, you) {
-  const perSession = await Promise.all(
-    sessionsList.map(async (session) => {
-      const [items, scores] = await Promise.all([api.listItems(session.id), api.listScores(session.id)])
-      return { session, items, scores }
-    }),
-  )
-
-  let totalItems = 0
-  let totalFlagged = 0
-  let totalPending = 0
-  let totalScoredByAnyone = 0
-  const tasks = []
-  const dimensionCounts = {}
-
-  for (const { session, items, scores } of perSession) {
-    const scoresByItem = {}
-    for (const s of scores) {
-      ;(scoresByItem[s.item_id] ||= []).push(s)
-    }
-
-    for (const item of items) {
-      totalItems++
-      const itemScores = scoresByItem[item.id] || []
-      if (itemScores.length > 0) totalScoredByAnyone++
-
-      if (item.flagged) {
-        totalFlagged++
-        for (const dim of item.disagreeing_dimensions || []) {
-          dimensionCounts[dim] = (dimensionCounts[dim] || 0) + 1
-        }
-        tasks.push({
-          kind: 'flagged',
-          sessionId: session.id,
-          sessionName: session.name,
-          itemId: item.id,
-          question: item.question,
-          at: item.order_index,
-        })
-      }
-
-      const scoredByYou = itemScores.some((s) => s.reviewer_email === you)
-      if (!scoredByYou) {
-        totalPending++
-        tasks.push({
-          kind: 'pending',
-          sessionId: session.id,
-          sessionName: session.name,
-          itemId: item.id,
-          question: item.question,
-          at: item.order_index,
-        })
-      }
-    }
-  }
-
-  // Flagged items first (more urgent), then pending; cap the list so it
-  // stays a quick scan, not another whole page to read.
-  tasks.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'flagged' ? -1 : 1))
-
-  const dimensionBars = Object.entries(dimensionCounts)
-    .map(([label, value]) => ({ label, value }))
-    .sort((a, b) => b.value - a.value)
-
-  return {
-    sessionCount: sessionsList.length,
-    totalItems,
-    totalFlagged,
-    totalPending,
-    scoredPercent: totalItems === 0 ? 0 : (totalScoredByAnyone / totalItems) * 100,
-    agreementPercent: totalItems === 0 ? 100 : ((totalItems - totalFlagged) / totalItems) * 100,
-    tasks: tasks.slice(0, 8),
-    dimensionBars,
-  }
 }
 
 // --- Icons ---

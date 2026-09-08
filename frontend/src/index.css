@@ -16,6 +16,8 @@
   --color-danger-tint: #fdecea;
   --color-success: #16a34a;
   --color-success-tint: #eafaf0;
+  --color-warning: #d97706;
+  --color-warning-tint: #fef3e2;
 
   --radius: 10px;
   --radius-lg: 16px;
@@ -285,6 +287,69 @@ input:focus {
 }
 .is-collapsed .sidebar__nav-label {
   display: none;
+}
+.sidebar__nav-icon {
+  position: relative;
+  display: flex;
+}
+.sidebar__nav-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 3px;
+  border-radius: 999px;
+  background: var(--color-danger);
+  color: white;
+  font-size: 0.62em;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.sidebar__quickstats {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+  margin-top: 0.3em;
+  padding-top: 0.5em;
+  border-top: 1px solid var(--color-border);
+}
+.sidebar__quickstat {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  padding: 0.4em 0.7em;
+  border-radius: 8px;
+  font-size: 0.8em;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  transition: background 0.15s, color 0.15s;
+}
+.sidebar__quickstat:hover {
+  background: var(--color-surface-sunken);
+  color: var(--color-text);
+  text-decoration: none;
+}
+.sidebar__quickstat-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.sidebar__quickstat--danger .sidebar__quickstat-dot {
+  background: var(--color-danger);
+}
+.sidebar__quickstat--warning .sidebar__quickstat-dot {
+  background: var(--color-warning);
+}
+.sidebar__quickstat-count {
+  margin-left: auto;
+  font-weight: 700;
+  color: var(--color-text);
 }
 
 .sidebar__section-label {
@@ -626,9 +691,13 @@ a:hover > .logo__mark,
   background: var(--color-danger-tint);
   color: var(--color-danger);
 }
-.stat-card--accent .stat-card__icon {
-  background: #e4e3fd;
-  color: var(--color-accent);
+.stat-card--warning .stat-card__icon {
+  background: var(--color-warning-tint);
+  color: var(--color-warning);
+}
+.stat-card--success .stat-card__icon {
+  background: var(--color-success-tint);
+  color: var(--color-success);
 }
 .stat-card__value {
   font-family: var(--font-display);
@@ -709,6 +778,9 @@ a:hover > .logo__mark,
 .task-item__dot--flagged {
   background: var(--color-danger);
 }
+.task-item__dot--pending {
+  background: var(--color-warning);
+}
 .task-item__text {
   display: flex;
   flex-direction: column;
@@ -754,7 +826,7 @@ a:hover > .logo__mark,
 .bar-chart__fill {
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--color-primary), var(--color-accent));
+  /* background color is set inline per-tone by charts.jsx */
   transition: width 0.7s var(--ease);
 }
 .bar-chart__value {
