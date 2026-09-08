@@ -11,7 +11,7 @@ Built in phases; this checklist tracks progress.
 - [x] **Phase 3** — WebSocket hub: connection management, broadcasting presence and (from Phase 5) score updates
 - [x] **Phase 4** — React frontend: login/signup, session list, session view, item cards, live presence
 - [x] **Phase 5** — Rubric scoring UI + disagreement flagging logic (backend + frontend)
-- [ ] Phase 6 — Comment threads, live via WebSocket
+- [x] **Phase 6** — Comment threads, live via WebSocket
 - [ ] Phase 7 — Export functionality (JSON/CSV)
 - [ ] Phase 8 — Terraform infrastructure + Azure deployment *(deliberately deferred — see note below)*
 - [ ] Phase 9 — Final README + architecture write-up
@@ -52,7 +52,7 @@ consensus/
 │   └── Dockerfile
 ├── frontend/           # React app (Vite)
 │   └── src/
-│       ├── components/  # AuthForm, SessionList, SessionView, ItemCard, PresenceIndicator, RubricScorer
+│       ├── components/  # AuthForm, SessionList, SessionView, ItemCard, PresenceIndicator, RubricScorer, CommentThread
 │       ├── hooks/         # useWebSocket — reconnect-with-backoff, presence/score/comment state
 │       ├── api.js          # REST client (fetch + cookies)
 │       └── App.jsx          # routing + auth gate
@@ -184,7 +184,7 @@ A client tells the server which item it's looking at by sending:
 
 (`item_id: ""` means "not viewing a specific item" — e.g. back on the session's item list.) The frontend (step 6) drives this automatically, but you can also try it directly with any WebSocket client — e.g. [websocat](https://github.com/vi/websocat): `websocat "ws://localhost:8080/ws/sessions/<SESSION_ID>" -H "Cookie: consensus_session=<value from cookies.txt>"`.
 
-Score updates broadcast on this same connection as `score_update` messages (`{"score": {...}, "flagged": bool, "disagreeing_dimensions": [...]}`); new comments (Phase 6) will use `comment`.
+Score updates broadcast on this same connection as `score_update` messages (`{"score": {...}, "flagged": bool, "disagreeing_dimensions": [...]}`); new comments broadcast as `comment` messages carrying the comment itself.
 
 ### 6. Run the frontend
 
@@ -201,6 +201,8 @@ Open **http://localhost:5173**. Sign up with an allowlisted email, create a sess
 Click a rubric score and submit — it's saved immediately and pushed live to every other connected reviewer. Once two reviewers have scored the same item and their ratings differ by at least the session's disagreement threshold (2, by default, on a scale dimension; any split verdict on a pass/fail dimension), the item is flagged "Needs discussion" for everyone, with a filter in the item list to jump straight to flagged items.
 
 If you want to see two reviewers disagree, open the same session URL in two browsers (or a normal + private window) signed in as two different allowlisted accounts, and score the same item differently.
+
+Every item also has a discussion thread — post a comment and it appears instantly for every other connected reviewer, oldest first, with your own comments visually distinguished from others'.
 
 ### 7. Run the tests
 
@@ -229,6 +231,8 @@ npm run lint
 | POST | `/api/sessions/{id}/items/upload` | yes | Upload a JSON or CSV batch of items |
 | POST | `/api/sessions/{id}/items/{itemID}/scores` | yes | Submit/update your score for one item |
 | GET | `/api/sessions/{id}/scores` | yes | List every score in the session |
+| POST | `/api/sessions/{id}/items/{itemID}/comments` | yes | Post a comment on one item |
+| GET | `/api/sessions/{id}/comments` | yes | List every comment in the session |
 | GET (WS) | `/ws/sessions/{id}` | yes | Live presence, score, and comment updates |
 
-More to come: comments, export.
+More to come: export.

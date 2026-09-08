@@ -2,6 +2,7 @@ import { useEffect, useState, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import * as api from '../api'
 import { useWebSocket } from '../hooks/useWebSocket'
+import CommentThread from './CommentThread'
 import ItemCard from './ItemCard'
 import PresenceIndicator from './PresenceIndicator'
 import RubricScorer from './RubricScorer'
@@ -17,6 +18,7 @@ export default function SessionView({ you }) {
   const [session, setSession] = useState(null)
   const [items, setItems] = useState(null)
   const [scoresByItem, setScoresByItem] = useState({}) // item id -> Score[]
+  const [commentsByItem, setCommentsByItem] = useState({}) // item id -> Comment[]
   const [error, setError] = useState(null)
   const [selectedItemId, setSelectedItemId] = useState(null)
   const [flaggedOnly, setFlaggedOnly] = useState(false)
@@ -43,8 +45,20 @@ export default function SessionView({ you }) {
     )
   }
 
+  // A comment can arrive twice for the poster — once as the direct REST
+  // response, once as the live broadcast echoed back to them — so this
+  // is a dedupe-by-id append, not a plain append.
+  function applyComment(comment) {
+    setCommentsByItem((prev) => {
+      const existing = prev[comment.item_id] || []
+      if (existing.some((c) => c.id === comment.id)) return prev
+      return { ...prev, [comment.item_id]: [...existing, comment] }
+    })
+  }
+
   const { presence, status } = useWebSocket(sessionId, selectedItemId, {
     onScoreUpdate: applyScoreUpdate,
+    onComment: applyComment,
   })
 
   useEffect(() => {
@@ -55,18 +69,26 @@ export default function SessionView({ you }) {
 
   async function load() {
     try {
-      const [sessionData, itemsData, scoresData] = await Promise.all([
+      const [sessionData, itemsData, scoresData, commentsData] = await Promise.all([
         api.getSession(sessionId),
         api.listItems(sessionId),
         api.listScores(sessionId),
+        api.listComments(sessionId),
       ])
       setSession(sessionData)
       setItems(itemsData)
-      const grouped = {}
+
+      const groupedScores = {}
       for (const s of scoresData) {
-        ;(grouped[s.item_id] ||= []).push(s)
+        ;(groupedScores[s.item_id] ||= []).push(s)
       }
-      setScoresByItem(grouped)
+      setScoresByItem(groupedScores)
+
+      const groupedComments = {}
+      for (const c of commentsData) {
+        ;(groupedComments[c.item_id] ||= []).push(c)
+      }
+      setCommentsByItem(groupedComments)
     } catch (err) {
       setError(err.message)
     }
@@ -91,6 +113,11 @@ export default function SessionView({ you }) {
   async function handleSubmitScore(itemId, rubricScores) {
     const result = await api.submitScore(sessionId, itemId, rubricScores)
     applyScoreUpdate(result)
+  }
+
+  async function handlePostComment(itemId, text) {
+    const comment = await api.createComment(sessionId, itemId, text)
+    applyComment(comment)
   }
 
   if (error) {
@@ -189,6 +216,8 @@ export default function SessionView({ you }) {
               you={you}
               scores={scoresByItem[selectedItem.id] || []}
               onSubmitScore={handleSubmitScore}
+              comments={commentsByItem[selectedItem.id] || []}
+              onPostComment={handlePostComment}
             />
           ) : (
             <p className="muted item-detail-pane__placeholder">
@@ -201,7 +230,7 @@ export default function SessionView({ you }) {
   )
 }
 
-function ItemDetail({ item, session, presence, you, scores, onSubmitScore }) {
+function ItemDetail({ item, session, presence, you, scores, onSubmitScore, comments, onPostComment }) {
   const myScore = scores.find((s) => s.reviewer_email === you)
   const [draft, setDraft] = useState(myScore?.rubric_scores || {})
   const [submitting, setSubmitting] = useState(false)
@@ -306,9 +335,16 @@ function ItemDetail({ item, session, presence, you, scores, onSubmitScore }) {
         )}
       </section>
 
-      <section className="item-detail__placeholder">
-        <h3>Discussion</h3>
-        <p className="muted">Comment thread arrives in Phase 6.</p>
+      <section className="item-detail__field">
+        <h3>Discussion ({comments.length})</h3>
+        {/* Keyed by item.id so switching items remounts the thread fresh
+            — a draft comment shouldn't follow you to a different item. */}
+        <CommentThread
+          key={item.id}
+          comments={comments}
+          you={you}
+          onPost={(text) => onPostComment(item.id, text)}
+        />
       </section>
     </div>
   )

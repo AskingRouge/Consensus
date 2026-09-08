@@ -70,4 +70,12 @@ export const listScores = (sessionId) => get(`/api/sessions/${sessionId}/scores`
 export const submitScore = (sessionId, itemId, rubricScores) =>
   post(`/api/sessions/${sessionId}/items/${itemId}/scores`, { rubric_scores: rubricScores })
 
+// --- Comments ---
+// listComments returns every comment in the session, oldest first — the
+// caller groups them by item itself.
+export const listComments = (sessionId) => get(`/api/sessions/${sessionId}/comments`)
+
+export const createComment = (sessionId, itemId, text) =>
+  post(`/api/sessions/${sessionId}/items/${itemId}/comments`, { text })
+
 export { ApiError }
