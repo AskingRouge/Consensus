@@ -322,6 +322,17 @@ input:focus {
   margin-bottom: 1em;
   flex-wrap: wrap;
 }
+.flagged-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: 0.9em;
+  color: var(--color-text);
+  cursor: pointer;
+}
+.flagged-filter input {
+  width: auto;
+}
 
 .item-list {
   display: flex;
@@ -358,6 +369,17 @@ input:focus {
   font-size: 0.8em;
   color: var(--color-text-muted);
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+.item-card__flag {
+  color: var(--color-danger);
+  background: #fdecea;
+  border-radius: 999px;
+  padding: 0.15em 0.6em;
+  font-size: 0.9em;
+  font-weight: 600;
 }
 .item-card__question {
   font-weight: 600;
@@ -391,6 +413,15 @@ input:focus {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.flagged-badge {
+  color: var(--color-danger);
+  background: #fdecea;
+  border: 1px solid #f3c6c0;
+  border-radius: var(--radius);
+  padding: 0.5em 0.8em;
+  font-size: 0.9em;
+  margin: 0.6em 0;
 }
 .item-detail__field {
   margin-bottom: 1.2em;
@@ -447,4 +478,97 @@ input:focus {
 }
 .presence-row .avatar:first-child {
   margin-left: 0;
+}
+
+/* --- Rubric scoring --- */
+
+.rubric-scorer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8em;
+  margin-bottom: 1em;
+}
+.rubric-scorer__dimension {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1em;
+  flex-wrap: wrap;
+}
+.rubric-scorer__label {
+  font-size: 0.9em;
+  font-weight: 500;
+}
+
+.scale-buttons,
+.pass-fail-buttons {
+  display: flex;
+  gap: 0.4em;
+}
+
+.scale-btn {
+  width: 2.2em;
+  height: 2.2em;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.scale-btn:hover {
+  border-color: var(--color-primary);
+}
+.scale-btn.is-selected {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: white;
+}
+
+.pf-btn {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: inherit;
+  font-weight: 600;
+  padding: 0.4em 1em;
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.pf-btn--pass.is-selected {
+  background: var(--color-success);
+  border-color: var(--color-success);
+  color: white;
+}
+.pf-btn--fail.is-selected {
+  background: var(--color-danger);
+  border-color: var(--color-danger);
+  color: white;
+}
+
+.scale-btn:disabled,
+.pf-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.scores-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+.scores-table th,
+.scores-table td {
+  text-align: left;
+  padding: 0.5em 0.6em;
+  border-bottom: 1px solid var(--color-border);
+}
+.scores-table th {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 0.85em;
+}
+.scores-table tr.is-you td {
+  font-weight: 600;
 }

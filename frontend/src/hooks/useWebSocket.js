@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { API_BASE } from '../api'
 
 const WS_BASE = API_BASE.replace(/^http/, 'ws')
@@ -7,22 +7,26 @@ const INITIAL_RECONNECT_DELAY_MS = 1000
 const MAX_RECONNECT_DELAY_MS = 15000
 
 /**
- * Manages the live connection to one review session: presence, and (from
- * Phase 5/6 on) score and comment updates. Reconnects automatically with
- * exponential backoff, and — since the hub broadcasts full snapshots, not
- * deltas — a client that just reconnected renders correctly from the very
- * next presence message without needing any special "catch up" logic.
+ * Manages the live connection to one review session: presence, score
+ * updates, and comments. Reconnects automatically with exponential
+ * backoff, and — since the hub broadcasts full snapshots, not deltas — a
+ * client that just reconnected renders correctly from the very next
+ * presence message without needing any special "catch up" logic.
  *
  * `viewItemId` is the item the caller is currently looking at (or null).
  * Whenever it changes, or the socket (re)connects, the current value is
  * sent to the server so presence reflects it — this is also how a dropped
  * connection resyncs its state automatically on reconnect, per the
  * project's non-functional requirements.
+ *
+ * `onScoreUpdate`/`onComment` are called with each message's payload as
+ * it arrives. They're callbacks rather than accumulated state because the
+ * right way to merge a score update (upsert by reviewer) or a comment
+ * (append, but only once) is something only the caller knows — the hook
+ * itself has no business deciding that.
  */
-export function useWebSocket(sessionId, viewItemId) {
+export function useWebSocket(sessionId, viewItemId, { onScoreUpdate, onComment } = {}) {
   const [presence, setPresence] = useState([])
-  const [scoreUpdates, setScoreUpdates] = useState([]) // Phase 5 populates these
-  const [comments, setComments] = useState([]) // Phase 6 populates these
   const [status, setStatus] = useState('connecting') // 'connecting' | 'open' | 'closed'
 
   const socketRef = useRef(null)
@@ -31,18 +35,26 @@ export function useWebSocket(sessionId, viewItemId) {
   const reconnectTimerRef = useRef(null)
   const closedByCallerRef = useRef(false)
 
+  const onScoreUpdateRef = useRef(onScoreUpdate)
+  const onCommentRef = useRef(onComment)
   useEffect(() => {
-    viewItemIdRef.current = viewItemId
-    sendViewItem(viewItemId)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [viewItemId])
+    onScoreUpdateRef.current = onScoreUpdate
+  }, [onScoreUpdate])
+  useEffect(() => {
+    onCommentRef.current = onComment
+  }, [onComment])
 
-  const sendViewItem = useCallback((itemId) => {
+  function sendViewItem(itemId) {
     const socket = socketRef.current
     if (socket && socket.readyState === WebSocket.OPEN) {
       socket.send(JSON.stringify({ type: 'view_item', item_id: itemId || '' }))
     }
-  }, [])
+  }
+
+  useEffect(() => {
+    viewItemIdRef.current = viewItemId
+    sendViewItem(viewItemId)
+  }, [viewItemId])
 
   useEffect(() => {
     if (!sessionId) return undefined
@@ -74,10 +86,10 @@ export function useWebSocket(sessionId, viewItemId) {
             setPresence(msg.payload || [])
             break
           case 'score_update':
-            setScoreUpdates((prev) => [...prev, msg.payload])
+            onScoreUpdateRef.current?.(msg.payload)
             break
           case 'comment':
-            setComments((prev) => [...prev, msg.payload])
+            onCommentRef.current?.(msg.payload)
             break
           default:
             break
@@ -116,5 +128,5 @@ export function useWebSocket(sessionId, viewItemId) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
-  return { presence, scoreUpdates, comments, status, sendViewItem }
+  return { presence, status }
 }

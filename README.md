@@ -8,9 +8,9 @@ Built in phases; this checklist tracks progress.
 
 - [x] **Phase 1** — Go backend skeleton, MongoDB models, REST CRUD for sessions/items (no auth, no WebSockets yet)
 - [x] **Phase 2** — Auth + allowlist middleware *(username/password for now — see note below)*
-- [x] **Phase 3** — WebSocket hub: connection management, broadcasting presence (score/comment broadcasts wire in once those features exist, Phases 5-6)
-- [x] **Phase 4** — React frontend: login/signup, session list, session view, item cards, live presence (score display slot exists, populated in Phase 5)
-- [ ] Phase 5 — Rubric scoring UI + disagreement flagging logic (backend + frontend)
+- [x] **Phase 3** — WebSocket hub: connection management, broadcasting presence and (from Phase 5) score updates
+- [x] **Phase 4** — React frontend: login/signup, session list, session view, item cards, live presence
+- [x] **Phase 5** — Rubric scoring UI + disagreement flagging logic (backend + frontend)
 - [ ] Phase 6 — Comment threads, live via WebSocket
 - [ ] Phase 7 — Export functionality (JSON/CSV)
 - [ ] Phase 8 — Terraform infrastructure + Azure deployment *(deliberately deferred — see note below)*
@@ -46,12 +46,13 @@ consensus/
 │   │   ├── parse/        # JSON/CSV item-batch parsing
 │   │   ├── handlers/      # REST endpoints
 │   │   ├── auth/            # username/password auth + allowlist (Phase 2; OAuth later)
-│   │   ├── ws/                # WebSocket hub: connections, presence, broadcast
-│   │   └── export/              # JSON/CSV export (Phase 7)
+│   │   ├── scoring/           # rubric validation + disagreement detection (pure, heavily tested)
+│   │   ├── ws/                  # WebSocket hub: connections, presence, broadcast
+│   │   └── export/                # JSON/CSV export (Phase 7)
 │   └── Dockerfile
 ├── frontend/           # React app (Vite)
 │   └── src/
-│       ├── components/  # AuthForm, SessionList, SessionView, ItemCard, PresenceIndicator
+│       ├── components/  # AuthForm, SessionList, SessionView, ItemCard, PresenceIndicator, RubricScorer
 │       ├── hooks/         # useWebSocket — reconnect-with-backoff, presence/score/comment state
 │       ├── api.js          # REST client (fetch + cookies)
 │       └── App.jsx          # routing + auth gate
@@ -183,7 +184,7 @@ A client tells the server which item it's looking at by sending:
 
 (`item_id: ""` means "not viewing a specific item" — e.g. back on the session's item list.) The frontend (step 6) drives this automatically, but you can also try it directly with any WebSocket client — e.g. [websocat](https://github.com/vi/websocat): `websocat "ws://localhost:8080/ws/sessions/<SESSION_ID>" -H "Cookie: consensus_session=<value from cookies.txt>"`.
 
-Score updates (Phase 5) and new comments (Phase 6) will broadcast on this same connection as `score_update` / `comment` messages — the hub and wire format are already in place for both.
+Score updates broadcast on this same connection as `score_update` messages (`{"score": {...}, "flagged": bool, "disagreeing_dimensions": [...]}`); new comments (Phase 6) will use `comment`.
 
 ### 6. Run the frontend
 
@@ -197,7 +198,9 @@ npm run dev
 
 Open **http://localhost:5173**. Sign up with an allowlisted email, create a session, upload a JSON/CSV batch (a file picker button, no curl needed now), and click into an item — you'll see the "Live" connection badge and everyone's presence avatars update in real time as reviewers move between items. Sharing a session's URL works as an invite link: an unauthenticated visitor is sent to log in first and is then dropped back on that exact session, not the session list.
 
-If you want to see two reviewers at once, open the same session URL in two browsers (or a normal + private window) signed in as two different allowlisted accounts.
+Click a rubric score and submit — it's saved immediately and pushed live to every other connected reviewer. Once two reviewers have scored the same item and their ratings differ by at least the session's disagreement threshold (2, by default, on a scale dimension; any split verdict on a pass/fail dimension), the item is flagged "Needs discussion" for everyone, with a filter in the item list to jump straight to flagged items.
+
+If you want to see two reviewers disagree, open the same session URL in two browsers (or a normal + private window) signed in as two different allowlisted accounts, and score the same item differently.
 
 ### 7. Run the tests
 
@@ -224,6 +227,8 @@ npm run lint
 | GET | `/api/sessions/{id}` | yes | Get one session |
 | GET | `/api/sessions/{id}/items` | yes | List items in a session |
 | POST | `/api/sessions/{id}/items/upload` | yes | Upload a JSON or CSV batch of items |
+| POST | `/api/sessions/{id}/items/{itemID}/scores` | yes | Submit/update your score for one item |
+| GET | `/api/sessions/{id}/scores` | yes | List every score in the session |
 | GET (WS) | `/ws/sessions/{id}` | yes | Live presence, score, and comment updates |
 
-More to come: score submission, comments, export.
+More to come: comments, export.

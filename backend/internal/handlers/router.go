@@ -38,6 +38,9 @@ func (h *Handler) Routes(r chi.Router) {
 
 			r.Get("/items", h.ListItems)
 			r.Post("/items/upload", h.UploadItems)
+			r.Post("/items/{itemID}/scores", h.SubmitScore)
+
+			r.Get("/scores", h.ListScores)
 		})
 	})
 }

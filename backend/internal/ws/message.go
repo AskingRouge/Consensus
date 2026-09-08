@@ -36,8 +36,9 @@ const (
 	// reviewer is looking at.
 	TypePresence = "presence"
 
-	// TypeScoreUpdate carries a models.Score — broadcast whenever any
-	// reviewer submits or changes a score (wired up in Phase 5).
+	// TypeScoreUpdate carries a handlers.ScoreUpdate (the submitted score
+	// plus the item's recomputed disagreement flag) — broadcast whenever
+	// any reviewer submits or changes a score.
 	TypeScoreUpdate = "score_update"
 
 	// TypeComment carries a models.Comment — broadcast whenever a new

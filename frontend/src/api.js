@@ -59,4 +59,15 @@ export function uploadItems(sessionId, file) {
   return request(`/api/sessions/${sessionId}/items/upload`, { method: 'POST', body: form })
 }
 
+// --- Scores ---
+// listScores returns every score in the session (all items, all
+// reviewers) — the caller groups them by item itself.
+export const listScores = (sessionId) => get(`/api/sessions/${sessionId}/scores`)
+
+// submitScore creates or overwrites the caller's score for one item.
+// rubricScores is {[dimensionName]: number}, covering every rubric
+// dimension. Returns { score, flagged, disagreeing_dimensions }.
+export const submitScore = (sessionId, itemId, rubricScores) =>
+  post(`/api/sessions/${sessionId}/items/${itemId}/scores`, { rubric_scores: rubricScores })
+
 export { ApiError }

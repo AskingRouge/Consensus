@@ -4,6 +4,7 @@ import * as api from '../api'
 import { useWebSocket } from '../hooks/useWebSocket'
 import ItemCard from './ItemCard'
 import PresenceIndicator from './PresenceIndicator'
+import RubricScorer from './RubricScorer'
 
 const STATUS_LABEL = {
   connecting: 'Connecting…',
@@ -15,12 +16,36 @@ export default function SessionView({ you }) {
   const { sessionId } = useParams()
   const [session, setSession] = useState(null)
   const [items, setItems] = useState(null)
+  const [scoresByItem, setScoresByItem] = useState({}) // item id -> Score[]
   const [error, setError] = useState(null)
   const [selectedItemId, setSelectedItemId] = useState(null)
+  const [flaggedOnly, setFlaggedOnly] = useState(false)
   const fileInputRef = useRef(null)
   const [uploading, setUploading] = useState(false)
 
-  const { presence, status } = useWebSocket(sessionId, selectedItemId)
+  // A score update — whether it arrives live over the socket or comes
+  // straight back from our own submit call — always means "replace this
+  // reviewer's score on this item, and refresh the item's flag". Sharing
+  // one function for both keeps a reviewer's own view correct even if
+  // their WebSocket happens to be disconnected right when they submit.
+  function applyScoreUpdate(payload) {
+    const { score, flagged, disagreeing_dimensions } = payload
+    setScoresByItem((prev) => {
+      const existing = prev[score.item_id] || []
+      const idx = existing.findIndex((s) => s.reviewer_email === score.reviewer_email)
+      const next = idx === -1 ? [...existing, score] : existing.map((s, i) => (i === idx ? score : s))
+      return { ...prev, [score.item_id]: next }
+    })
+    setItems((prev) =>
+      prev
+        ? prev.map((i) => (i.id === score.item_id ? { ...i, flagged, disagreeing_dimensions } : i))
+        : prev,
+    )
+  }
+
+  const { presence, status } = useWebSocket(sessionId, selectedItemId, {
+    onScoreUpdate: applyScoreUpdate,
+  })
 
   useEffect(() => {
     setSelectedItemId(null)
@@ -30,12 +55,18 @@ export default function SessionView({ you }) {
 
   async function load() {
     try {
-      const [sessionData, itemsData] = await Promise.all([
+      const [sessionData, itemsData, scoresData] = await Promise.all([
         api.getSession(sessionId),
         api.listItems(sessionId),
+        api.listScores(sessionId),
       ])
       setSession(sessionData)
       setItems(itemsData)
+      const grouped = {}
+      for (const s of scoresData) {
+        ;(grouped[s.item_id] ||= []).push(s)
+      }
+      setScoresByItem(grouped)
     } catch (err) {
       setError(err.message)
     }
@@ -57,6 +88,11 @@ export default function SessionView({ you }) {
     }
   }
 
+  async function handleSubmitScore(itemId, rubricScores) {
+    const result = await api.submitScore(sessionId, itemId, rubricScores)
+    applyScoreUpdate(result)
+  }
+
   if (error) {
     return (
       <div className="page">
@@ -76,6 +112,8 @@ export default function SessionView({ you }) {
 
   const selectedItem = items.find((i) => i.id === selectedItemId) || null
   const viewingListEntries = presence.filter((p) => !p.item_id)
+  const flaggedCount = items.filter((i) => i.flagged).length
+  const visibleItems = flaggedOnly ? items.filter((i) => i.flagged) : items
 
   return (
     <div className="page page--session">
@@ -89,12 +127,7 @@ export default function SessionView({ you }) {
         </div>
         <div className="session-header__right">
           <span className={`ws-status ws-status--${status}`}>{STATUS_LABEL[status]}</span>
-          <PresenceIndicator
-            presence={presence}
-            itemId={undefined}
-            you={you}
-            emptyText={null}
-          />
+          <PresenceIndicator presence={presence} itemId={undefined} you={you} />
         </div>
       </div>
 
@@ -112,18 +145,28 @@ export default function SessionView({ you }) {
                 hidden
               />
             </label>
+            {flaggedCount > 0 && (
+              <label className="flagged-filter">
+                <input
+                  type="checkbox"
+                  checked={flaggedOnly}
+                  onChange={(e) => setFlaggedOnly(e.target.checked)}
+                />
+                Needs discussion only ({flaggedCount})
+              </label>
+            )}
             {viewingListEntries.length > 0 && (
-              <span className="muted small">
-                {viewingListEntries.length} browsing the list
-              </span>
+              <span className="muted small">{viewingListEntries.length} browsing the list</span>
             )}
           </div>
 
           {items.length === 0 ? (
             <p className="muted">No items yet — upload a batch to get started.</p>
+          ) : visibleItems.length === 0 ? (
+            <p className="muted">No flagged items.</p>
           ) : (
             <div className="item-list">
-              {items.map((item) => (
+              {visibleItems.map((item) => (
                 <ItemCard
                   key={item.id}
                   item={item}
@@ -139,10 +182,17 @@ export default function SessionView({ you }) {
 
         <div className="item-detail-pane">
           {selectedItem ? (
-            <ItemDetail item={selectedItem} session={session} presence={presence} you={you} />
+            <ItemDetail
+              item={selectedItem}
+              session={session}
+              presence={presence}
+              you={you}
+              scores={scoresByItem[selectedItem.id] || []}
+              onSubmitScore={handleSubmitScore}
+            />
           ) : (
             <p className="muted item-detail-pane__placeholder">
-              Select an item to view it in full and (soon) score it.
+              Select an item to view it in full and score it.
             </p>
           )}
         </div>
@@ -151,8 +201,36 @@ export default function SessionView({ you }) {
   )
 }
 
-function ItemDetail({ item, session, presence, you }) {
+function ItemDetail({ item, session, presence, you, scores, onSubmitScore }) {
+  const myScore = scores.find((s) => s.reviewer_email === you)
+  const [draft, setDraft] = useState(myScore?.rubric_scores || {})
+  const [submitting, setSubmitting] = useState(false)
+  const [scoreError, setScoreError] = useState(null)
+
+  // Reset the draft when switching to a different item — but NOT when
+  // `scores` changes for the current item (e.g. another reviewer's score
+  // arrives live), which would otherwise wipe out an in-progress edit.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    setDraft(myScore?.rubric_scores || {})
+    setScoreError(null)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id])
+
   const viewers = presence.filter((p) => p.item_id === item.id && p.reviewer_email !== you)
+  const isComplete = session.rubric.every((dim) => draft[dim.name] !== undefined)
+
+  async function handleSubmit() {
+    setSubmitting(true)
+    setScoreError(null)
+    try {
+      await onSubmitScore(item.id, draft)
+    } catch (err) {
+      setScoreError(err.message)
+    } finally {
+      setSubmitting(false)
+    }
+  }
 
   return (
     <div className="item-detail">
@@ -161,10 +239,14 @@ function ItemDetail({ item, session, presence, you }) {
         <PresenceIndicator presence={presence} itemId={item.id} you={you} />
       </div>
 
-      {viewers.length > 0 && (
-        <p className="muted small">
-          Also viewing: {viewers.map((v) => v.reviewer_email).join(', ')}
+      {item.flagged && (
+        <p className="flagged-badge">
+          Needs discussion — reviewers disagree on {item.disagreeing_dimensions?.join(', ')}
         </p>
+      )}
+
+      {viewers.length > 0 && (
+        <p className="muted small">Also viewing: {viewers.map((v) => v.reviewer_email).join(', ')}</p>
       )}
 
       <section className="item-detail__field">
@@ -182,11 +264,46 @@ function ItemDetail({ item, session, presence, you }) {
         <p>{item.generated_answer}</p>
       </section>
 
-      <section className="item-detail__placeholder">
-        <h3>Rubric scoring</h3>
-        <p className="muted">
-          {session.rubric.map((r) => r.name).join(' · ')} — scoring UI arrives in Phase 5.
-        </p>
+      <section className="item-detail__field">
+        <h3>Your score</h3>
+        <RubricScorer
+          rubric={session.rubric}
+          draft={draft}
+          disabled={submitting}
+          onChange={(name, value) => setDraft((d) => ({ ...d, [name]: value }))}
+        />
+        {scoreError && <p className="error-text">{scoreError}</p>}
+        <button type="button" className="btn btn--primary" disabled={!isComplete || submitting} onClick={handleSubmit}>
+          {submitting ? 'Submitting…' : myScore ? 'Update score' : 'Submit score'}
+        </button>
+      </section>
+
+      <section className="item-detail__field">
+        <h3>All scores ({scores.length})</h3>
+        {scores.length === 0 ? (
+          <p className="muted small">No one has scored this item yet.</p>
+        ) : (
+          <table className="scores-table">
+            <thead>
+              <tr>
+                <th>Reviewer</th>
+                {session.rubric.map((dim) => (
+                  <th key={dim.name}>{dim.name}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {scores.map((s) => (
+                <tr key={s.reviewer_email} className={s.reviewer_email === you ? 'is-you' : ''}>
+                  <td>{s.reviewer_email === you ? `${s.reviewer_email} (you)` : s.reviewer_email}</td>
+                  {session.rubric.map((dim) => (
+                    <td key={dim.name}>{formatScoreValue(dim, s.rubric_scores[dim.name])}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
 
       <section className="item-detail__placeholder">
@@ -195,4 +312,9 @@ function ItemDetail({ item, session, presence, you }) {
       </section>
     </div>
   )
+}
+
+function formatScoreValue(dim, value) {
+  if (value === undefined) return '—'
+  return dim.type === 'pass_fail' ? (value === 1 ? 'Pass' : 'Fail') : value
 }
