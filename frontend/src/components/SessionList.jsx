@@ -57,9 +57,23 @@ export default function SessionList() {
 
       {error && <p className="error-text">{error}</p>}
 
-      {sessions === null && !error && <p className="muted">Loading…</p>}
+      {sessions === null && !error && (
+        <div>
+          <div className="skeleton skeleton-row" />
+          <div className="skeleton skeleton-row" />
+          <div className="skeleton skeleton-row" />
+        </div>
+      )}
+
       {sessions && sessions.length === 0 && (
-        <p className="muted">Nothing here yet — create a session above to get started.</p>
+        <div className="empty-state">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="4" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+            <rect x="3" y="11" width="18" height="4" rx="1.5" stroke="currentColor" strokeWidth="1.6" />
+            <rect x="3" y="18" width="10" height="2.5" rx="1.25" stroke="currentColor" strokeWidth="1.6" />
+          </svg>
+          <p>Nothing here yet — create a session above to get started, or ask a teammate to invite you to theirs.</p>
+        </div>
       )}
 
       <ul className="session-list">

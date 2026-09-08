@@ -1,10 +1,21 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
   <defs>
-    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#7C3AED" />
-      <stop offset="100%" stop-color="#4338CA" />
+    <linearGradient id="faceLeft" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#C7B4FB" />
+      <stop offset="100%" stop-color="#9F7EF0" />
+    </linearGradient>
+    <linearGradient id="faceRight" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#9B70EE" />
+      <stop offset="100%" stop-color="#7C3AED" />
+    </linearGradient>
+    <linearGradient id="faceBottom" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6428C9" />
+      <stop offset="100%" stop-color="#3B0F6F" />
     </linearGradient>
   </defs>
-  <rect width="40" height="40" rx="12" fill="url(#g)" />
-  <path d="M12 21.5l5.5 5.5L28 14" stroke="white" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+  <path d="M100,100 L100,15 L173.6,57.5 L173.6,142.5 Z" fill="url(#faceRight)" />
+  <path d="M100,100 L173.6,142.5 L100,185 L26.4,142.5 Z" fill="url(#faceBottom)" />
+  <path d="M100,100 L26.4,142.5 L26.4,57.5 L100,15 Z" fill="url(#faceLeft)" />
+  <rect x="46" y="56" width="102" height="102" rx="27" fill="white" />
+  <path d="M69 109l23 22 47-49" stroke="#3B0F6F" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="none" />
 </svg>

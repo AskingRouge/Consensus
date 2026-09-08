@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import * as api from './api'
 import AuthForm from './components/AuthForm'
 import Sidebar from './components/Sidebar'
@@ -40,7 +40,7 @@ export default function App() {
         path="/sessions/:sessionId"
         element={
           <RequireAuth you={you}>
-            <SessionView you={you} />
+            <SessionViewPage you={you} />
           </RequireAuth>
         }
       />
@@ -73,4 +73,13 @@ function RequireAuth({ you, children }) {
     return <Navigate to={`/login?next=${next}`} replace />
   }
   return children
+}
+
+// Keyed by sessionId so switching from one session straight to another
+// (e.g. via the sidebar's Recent list) remounts the view instead of
+// re-rendering it in place — that's what makes the page-enter animation
+// (and a clean reset of any in-progress local state) fire every time.
+function SessionViewPage({ you }) {
+  const { sessionId } = useParams()
+  return <SessionView key={sessionId} you={you} />
 }

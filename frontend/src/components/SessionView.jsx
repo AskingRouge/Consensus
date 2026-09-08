@@ -27,6 +27,7 @@ export default function SessionView({ you }) {
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviting, setInviting] = useState(false)
   const [inviteError, setInviteError] = useState(null)
+  const [inviteJustSucceeded, setInviteJustSucceeded] = useState(false)
 
   // A score update — whether it arrives live over the socket or comes
   // straight back from our own submit call — always means "replace this
@@ -132,6 +133,8 @@ export default function SessionView({ you }) {
       await api.inviteMember(sessionId, inviteEmail.trim())
       setInviteEmail('')
       setSession(await api.getSession(sessionId))
+      setInviteJustSucceeded(true)
+      setTimeout(() => setInviteJustSucceeded(false), 1600)
     } catch (err) {
       setInviteError(err.message)
     } finally {
@@ -150,8 +153,16 @@ export default function SessionView({ you }) {
 
   if (!session || !items) {
     return (
-      <div className="page">
-        <p className="muted">Loading…</p>
+      <div className="page page--session">
+        <div className="skeleton" style={{ height: 28, width: 240, marginBottom: 8 }} />
+        <div className="skeleton" style={{ height: 16, width: 160, marginBottom: 28 }} />
+        <div className="session-body">
+          <div>
+            <div className="skeleton skeleton-row" />
+            <div className="skeleton skeleton-row" />
+          </div>
+          <div className="skeleton" style={{ height: 260 }} />
+        </div>
       </div>
     )
   }
@@ -197,8 +208,12 @@ export default function SessionView({ you }) {
             onChange={(e) => setInviteEmail(e.target.value)}
             disabled={inviting}
           />
-          <button type="submit" className="btn btn--secondary" disabled={inviting || !inviteEmail.trim()}>
-            {inviting ? 'Inviting…' : '+ Invite'}
+          <button
+            type="submit"
+            className={`btn btn--secondary${inviteJustSucceeded ? ' btn--flash-success' : ''}`}
+            disabled={inviting || !inviteEmail.trim()}
+          >
+            {inviteJustSucceeded ? '✓ Invited' : inviting ? 'Inviting…' : '+ Invite'}
           </button>
         </form>
         {inviteError && <span className="error-text small">{inviteError}</span>}
@@ -234,7 +249,17 @@ export default function SessionView({ you }) {
           </div>
 
           {items.length === 0 ? (
-            <p className="muted">No items yet — upload a batch to get started.</p>
+            <div className="empty-state">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path
+                  d="M12 4v16m8-8H4"
+                  stroke="currentColor"
+                  strokeWidth="1.6"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <p>No items yet — upload a JSON or CSV batch above to get started.</p>
+            </div>
           ) : visibleItems.length === 0 ? (
             <p className="muted">No flagged items.</p>
           ) : (
@@ -266,9 +291,13 @@ export default function SessionView({ you }) {
               onPostComment={handlePostComment}
             />
           ) : (
-            <p className="muted item-detail-pane__placeholder">
-              Select an item to view it in full and score it.
-            </p>
+            <div className="empty-state item-detail-pane__placeholder">
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <rect x="4" y="3" width="16" height="18" rx="2" stroke="currentColor" strokeWidth="1.6" />
+                <path d="M8 8h8M8 12h8M8 16h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+              </svg>
+              <p>Select an item to view it in full and score it.</p>
+            </div>
           )}
         </div>
       </div>
@@ -281,6 +310,7 @@ function ItemDetail({ item, session, presence, you, scores, onSubmitScore, comme
   const [draft, setDraft] = useState(myScore?.rubric_scores || {})
   const [submitting, setSubmitting] = useState(false)
   const [scoreError, setScoreError] = useState(null)
+  const [justSaved, setJustSaved] = useState(false)
 
   // Reset the draft when switching to a different item — but NOT when
   // `scores` changes for the current item (e.g. another reviewer's score
@@ -300,6 +330,8 @@ function ItemDetail({ item, session, presence, you, scores, onSubmitScore, comme
     setScoreError(null)
     try {
       await onSubmitScore(item.id, draft)
+      setJustSaved(true)
+      setTimeout(() => setJustSaved(false), 1400)
     } catch (err) {
       setScoreError(err.message)
     } finally {
@@ -348,8 +380,13 @@ function ItemDetail({ item, session, presence, you, scores, onSubmitScore, comme
           onChange={(name, value) => setDraft((d) => ({ ...d, [name]: value }))}
         />
         {scoreError && <p className="error-text">{scoreError}</p>}
-        <button type="button" className="btn btn--primary" disabled={!isComplete || submitting} onClick={handleSubmit}>
-          {submitting ? 'Submitting…' : myScore ? 'Update score' : 'Submit score'}
+        <button
+          type="button"
+          className={`btn btn--primary${justSaved ? ' btn--flash-success' : ''}`}
+          disabled={!isComplete || submitting}
+          onClick={handleSubmit}
+        >
+          {justSaved ? '✓ Saved' : submitting ? 'Submitting…' : myScore ? 'Update score' : 'Submit score'}
         </button>
       </section>
 
